@@ -1,0 +1,101 @@
+[
+ {"id": "new-ask-folder", "about": "a new ask starts one thread whose brief is the user's words",
+  "turns": ["check the old-prototype/ folder in my projects dir"],
+  "expect": {"start_thread": 1, "message_thread": 0, "max_lines": 1, "brief_verbatim": true}},
+
+ {"id": "new-ask-research", "about": "the brief adds no deliverables the user never asked for",
+  "turns": ["Run a research thread to teach me about the recipe app market. How do apps like this get users, and what does that cost? What do my numbers need to look like to break even?"],
+  "expect": {"start_thread": 1, "max_lines": 1,
+             "brief_verbatim": true,
+             "brief_lacks": ["HTML", "artifact", "Cite", "calculator"]}},
+
+ {"id": "bug-as-question", "about": "a 'why did X happen' question about the product is a bug report, so a new thread",
+  "threads": [{"title": "Onboarding and UI pass", "agent_state": "working"}],
+  "turns": ["why couldn't I save a recipe during my first session?"],
+  "expect": {"start_thread": 1, "message_thread": 0, "max_lines": 1, "brief_verbatim": true}},
+
+ {"id": "follow-up-running-thread", "about": "a follow-up goes to the thread that owns it, quoted verbatim",
+  "threads": [{"title": "Meal planner design with clickable variants", "agent_state": "Idle",
+               "last_reply": "Four clickable variants are on the preview site with a picker."},
+              {"title": "Shared component library", "agent_state": "working"}],
+  "turns": ["get the prototype agent from earlier to make a mobile-specific version of the meal planner design skill"],
+  "expect": {"start_thread": 0, "message_thread": 1, "to": "Meal planner design with clickable variants",
+             "relay_quotes": "get the prototype agent from earlier to make a mobile-specific version of the meal planner design skill", "max_lines": 2}},
+
+ {"id": "follow-up-complaint", "about": "a complaint about something a running thread is building is a follow-up for it",
+  "threads": [{"title": "Dev environment helper scripts", "agent_state": "working",
+               "brief": "build helper scripts for agents, e.g. \"start my dev server\", \"screenshot each page\" and \"clean up stale preview builds\", from the failure modes in past transcripts",
+               "status": "Helper scripts\n\n✱ Collecting dev server failure modes (wrong port, stale build, two watchers fighting)\n○ Build the scripts"},
+              {"title": "Nightly test report", "agent_state": "working"}],
+  "turns": ["every thread starts its own dev server and I can't tell which browser tab is which. design a fix and test it on my machine"],
+  "expect": {"start_thread": 0, "message_thread": 1, "to": "Dev environment helper scripts", "max_lines": 2}},
+
+ {"id": "follow-up-ui-question", "about": "a question about UI a running thread owns goes to that thread",
+  "threads": [{"title": "Onboarding and UI pass", "agent_state": "working"},
+              {"title": "Analytics events", "agent_state": "working"}],
+  "turns": ["I don't like the default icons on the recipe cards, what are my options to redo them?"],
+  "expect": {"start_thread": 0, "message_thread": 1, "to": "Onboarding and UI pass", "max_lines": 2}},
+
+ {"id": "one-word-answer", "about": "a one-word answer goes to the thread that asked the question",
+  "threads": [{"title": "Recipe card redesign", "agent_state": "Idle",
+               "waiting": {"question": "Which card layout: compact, photo-first or list? I recommend photo-first."}},
+              {"title": "Shopping list export", "agent_state": "working"}],
+  "turns": ["photo-first"],
+  "expect": {"start_thread": 0, "message_thread": 1, "to": "Recipe card redesign", "relay_quotes": "photo-first", "max_lines": 1}},
+
+ {"id": "resolved-follow-up", "about": "a follow-up on a resolved thread reopens it before forwarding",
+  "threads": [{"title": "Nightly backup check", "resolved": true, "agent_state": "Idle",
+               "last_reply": "The backup check runs every night at 3am."}],
+  "turns": ["the backup check didn't run last night, can you run today's check by hand?"],
+  "expect": {"message_thread": 1, "to": "Nightly backup check", "reopen": true, "start_thread": 0, "max_lines": 1}},
+
+ {"id": "whats-next", "about": "a project question is answered from list_threads, waiting-on-you first",
+  "threads": [{"title": "Recipe card redesign", "agent_state": "Idle", "waiting": {"question": "Say merge for the new card PR?"}},
+              {"title": "Onboarding and UI pass", "agent_state": "Idle", "last_reply": "PR is green. Say merge after a quick look."},
+              {"title": "Search ranking experiments", "agent_state": "working"},
+              {"title": "Recipe app market research", "resolved": true}],
+  "turns": ["whats next?"],
+  "expect": {"start_thread": 0, "message_thread": 0, "list_threads": true, "max_lines": 12,
+             "mentions": ["Recipe card redesign", "Onboarding"]}},
+
+ {"id": "parallel-question", "about": "a planning question is answered here, not turned into a thread",
+  "threads": [{"title": "Meal planner design session", "agent_state": "working"}],
+  "turns": ["what else can we run in parallel while the design gets settled?"],
+  "expect": {"start_thread": 0, "message_thread": 0, "max_lines": 12}},
+
+ {"id": "bundle-question-plus-three", "about": "a setup question plus three asks: answer it and start three threads",
+  "turns": ["should project instructions live in the repo's CLAUDE.md instead? also start three threads: analytics events (research first then a design), a nightly test report on main, and dev environment helper scripts built from failure modes in past transcripts"],
+  "expect": {"start_thread": 3, "message_thread": 0, "max_lines": 4}},
+
+ {"id": "two-asks-close-together", "about": "two asks in a row start two threads with verbatim briefs",
+  "turns": ["Run a research thread on how people discover recipe apps and what ads cost",
+            "also a research thread on how far we can take A/B testing, ideally with agents running and judging the tests"],
+  "expect": {"start_thread": 2, "message_thread": 0, "max_lines": 1, "brief_verbatim": true}},
+
+ {"id": "overnight-push", "about": "a long autonomous ask becomes one thread that owns the loop",
+  "turns": ["hey I won't be around tonight. I need to get the beta out, make a list of everything that isn't polished and keep starting threads, iterating, and merging (following our development process and running retros) until the beta is ready."],
+  "expect": {"start_thread": 1, "max_lines": 2,
+             "brief_verbatim": true}},
+
+ {"id": "thanks", "about": "thanks gets one short line at most",
+  "threads": [{"title": "Save button missing on first session", "resolved": true}],
+  "turns": ["thanks, nice work today"],
+  "expect": {"start_thread": 0, "message_thread": 0, "max_lines": 1}},
+
+ {"id": "thread-note", "about": "a note from one thread for another is relayed silently",
+  "threads": [{"title": "Save button missing on first session", "agent_state": "working"},
+              {"title": "Recipe card redesign", "agent_state": "working"}],
+  "turns": ["<cmuxp-message from=\"t1\" kind=\"thread-note\">\nI'm adding a placeholder save icon named \"bookmark\" to the icon set. Recipe card redesign should design the real one under the same name.\n</cmuxp-message>"],
+  "expect": {"start_thread": 0, "message_thread": 1, "to": "Recipe card redesign", "silent": true}},
+
+ {"id": "thread-reply-observed", "about": "a thread's reply is an observation, never recapped",
+  "threads": [{"title": "Recipe app market research", "agent_state": "Idle", "resolved": true}],
+  "turns": ["<cmuxp-message from=\"t1\" kind=\"thread-reply\" thread=\"Recipe app market research\" finished=\"true\">\nNothing is needed from you. I wrote it up as a page with a calculator. Break-even needs about 30% week-1 retention and a 4% paid conversion.\n</cmuxp-message>"],
+  "expect": {"start_thread": 0, "message_thread": 0, "silent": true}},
+
+ {"id": "thread-reply-follow-through", "about": "work promised on a thread's result starts when the result lands",
+  "threads": [{"title": "Beta polish audit", "agent_state": "working"}],
+  "turns": ["when the beta audit thread posts its list, start a thread for each blocking item",
+            "<cmuxp-message from=\"t1\" kind=\"thread-reply\" thread=\"Beta polish audit\" finished=\"true\">\nThe beta polish list is in beta-polish.md. Blocking, in order:\n1. Saved recipes per account: favourites are lost when you sign out.\n2. Image upload: large photos fail silently.\nShould-have items are in the file.\n</cmuxp-message>"],
+  "expect": {"start_thread": 2, "message_thread": 0, "max_lines": 2}}
+]

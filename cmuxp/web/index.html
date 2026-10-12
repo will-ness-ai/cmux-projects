@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Threads</title>
+<style>
+:root {
+  --bg: #faf9f5; --panel: #ffffff; --row: #f0eee6; --row-hover: #e8e5da;
+  --text: #1f1e1d; --muted: #6b6a66; --line: #e3e0d6; --accent: #c96442;
+  --working: #2f6fdb; --blocked: #c2410c; --idle: #6b6a66; --resolved: #3f7d4a;
+  --focus: #1f1e1d;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1f1e1d; --panel: #262624; --row: #2f2e2b; --row-hover: #3a3935;
+    --text: #f2f0e8; --muted: #a3a199; --line: #3a3935; --accent: #d97757;
+    --working: #6b9cf0; --blocked: #f08a4b; --idle: #a3a199; --resolved: #7fb98a; --focus: #f2f0e8;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 28px 16px 60px; }
+h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; font-size: 30px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 22px; }
+.section { margin-bottom: 14px; }
+.section-head { display: flex; align-items: baseline; gap: 8px; padding: 9px 14px; background: var(--row);
+  border-radius: 8px; cursor: pointer; user-select: none; font-weight: 500; }
+.section-head .count { color: var(--muted); font-weight: 400; }
+.section-head .chev { color: var(--muted); width: 12px; display: inline-block; transition: transform .15s; }
+.section.open .chev { transform: rotate(90deg); }
+.section .hint { color: var(--muted); font-size: 13px; padding: 8px 14px 0; }
+.rows { display: none; padding-top: 4px; }
+.section.open .rows { display: block; }
+.row { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: start;
+  padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+.row:hover { background: var(--row-hover); }
+.row.focused { border-color: var(--focus); }
+.dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; background: var(--idle); }
+.dot.working { background: var(--working); animation: pulse 1.2s infinite ease-in-out; }
+.dot.blocked { background: var(--blocked); }
+.dot.resolved { background: var(--resolved); }
+.dot.starting { background: var(--line); }
+@keyframes pulse { 50% { opacity: .35; } }
+.title { font-weight: 500; overflow-wrap: anywhere; }
+.line { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.line.q { color: var(--blocked); }
+.when { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.detail { margin: 2px 14px 10px 34px; padding: 10px 12px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+.detail pre { white-space: pre-wrap; margin: 0 0 8px; font: 13px/1.5 ui-monospace, Menlo, monospace; }
+.detail .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; margin: 6px 0 2px; }
+.send { display: flex; gap: 6px; margin-top: 8px; }
+.send input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--text); font: inherit; }
+.send button { padding: 7px 12px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+.empty { color: var(--muted); font-size: 14px; padding: 8px 14px; }
+.err { color: var(--blocked); font-size: 13px; min-height: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="hello">Welcome back.</h1>
+  <p class="sub" id="summary">Loading…</p>
+  <div class="err" id="err"></div>
+  <div id="sections"></div>
+</main>
+<script>
+const SECTIONS = [
+  { key: "blocked", name: "Waiting on you", hint: "Decisions, questions and permission prompts.", open: true },
+  { key: "working", name: "Working", open: true },
+  { key: "idle", name: "Idle", open: true },
+  { key: "resolved", name: "Resolved", open: false },
+];
+let state = null, selected = null;
+const openState = {};
+SECTIONS.forEach(s => openState[s.key] = s.open);
+
+function ago(ts, now) {
+  if (!ts) return "";
+  const s = Math.max(0, now - ts);
+  if (s < 60) return "now";
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  return Math.floor(s / 86400) + "d";
+}
+function currentStep(status) {
+  if (!status) return "";
+  const lines = status.split("\n").map(l => l.trim()).filter(Boolean);
+  return (lines.find(l => l.startsWith("✱")) || lines.find(l => l.startsWith("○")) || lines[0] || "").replace(/\*\*/g, "");
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+async function focusThread(id) {
+  selected = id;
+  try { await post("/api/focus", { id }); document.getElementById("err").textContent = ""; }
+  catch (e) { document.getElementById("err").textContent = "Couldn't switch cmux: " + e.message; }
+  refresh();
+}
+
+function rowFor(t, now) {
+  const wrap = el("div");
+  const row = el("div", "row" + (t.focused ? " focused" : ""));
+  row.dataset.id = t.id;
+  row.append(el("span", "dot " + t.display_state));
+  const body = el("div");
+  body.append(el("div", "title", t.title));
+  if (t.waiting) body.append(el("div", "line q", t.waiting.question));
+  else if (t.display_state === "working") body.append(el("div", "line", currentStep(t.status) || "Working…"));
+  else if (t.last_reply) body.append(el("div", "line", t.last_reply.split("\n")[0].slice(0, 160)));
+  else if (t.display_state === "blocked") body.append(el("div", "line q", "Waiting on a permission prompt in its terminal"));
+  row.append(body, el("span", "when", ago(t.last_reply_at || t.created_at, now)));
+  row.onclick = () => focusThread(t.id);
+  wrap.append(row);
+  if (selected === t.id) {
+    const d = el("div", "detail");
+    if (t.status) { d.append(el("div", "label", "Checklist"), el("pre", null, t.status)); }
+    if (t.last_reply) { d.append(el("div", "label", "Latest reply"), el("pre", null, t.last_reply)); }
+    const f = el("form", "send"); const i = el("input"); i.placeholder = "Message this thread…";
+    f.append(i, el("button", null, "Send"));
+    f.onsubmit = async ev => { ev.preventDefault(); if (!i.value.trim()) return;
+      await post("/api/message", { to: t.id, text: i.value }); i.value = ""; };
+    d.append(f); wrap.append(d);
+  }
+  return wrap;
+}
+
+function render() {
+  const now = state.now;
+  const blocked = state.threads.filter(t => t.display_state === "blocked").length;
+  document.getElementById("hello").textContent = state.project;
+  document.getElementById("summary").textContent = blocked ? `${blocked} waiting on you.` : "Nothing is waiting on you.";
+  const root = document.getElementById("sections");
+  root.replaceChildren();
+  const c = state.coordinator || {};
+  const chat = el("div", "row" + (c.focused ? " focused" : ""));
+  chat.append(el("span", "dot " + (c.agent_state === "working" ? "working" : "idle")));
+  const cb = el("div"); cb.append(el("div", "title", "Project chat"), el("div", "line", "The coordinator. Type here to start threads."));
+  chat.append(cb, el("span", "when", ""));
+  chat.onclick = () => focusThread("coordinator");
+  root.append(chat, el("div", null, " "));
+  for (const s of SECTIONS) {
+    const items = state.threads.filter(t => (t.display_state === "starting" ? "working" : t.display_state) === s.key);
+    const sec = el("div", "section" + (openState[s.key] ? " open" : ""));
+    const head = el("div", "section-head");
+    head.append(el("span", "chev", "›"), el("span", null, s.name), el("span", "count", String(items.length)));
+    head.onclick = () => { openState[s.key] = !openState[s.key]; render(); };
+    sec.append(head);
+    const rows = el("div", "rows");
+    if (s.hint && !items.length) rows.append(el("div", "hint", s.hint));
+    items.forEach(t => rows.append(rowFor(t, now)));
+    sec.append(rows);
+    root.append(sec);
+  }
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("/api/state");
+    state = await r.json();
+    if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+    render();
+  } catch (e) { document.getElementById("summary").textContent = "Dashboard process is not reachable."; }
+}
+refresh();
+setInterval(refresh, 1000);
+</script>
+</body>
+</html>

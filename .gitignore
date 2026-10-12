@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+tests/replay-report.md
+tests/replay-summary.txt
+.DS_Store
