@@ -1,44 +1,23 @@
 #!/usr/bin/env bash
-# cmuxp: Projects-lite on a sandboxed cmux (cmux-tui). Works on macOS and Linux.
-#   bin/cmuxp setup     install cmux-tui into the sandbox (once)
-#   bin/cmuxp login     sign the sandboxed Claude in (once; run /login, then /exit)
-#   bin/cmuxp up        start cmux server, coordinator Claude and dashboard
-#   bin/cmuxp view      open the cmux window that follows dashboard clicks
-#   bin/cmuxp down      stop everything
+# cmuxp: a coordinator Claude plus thread Claudes, one cmux workspace each, in the cmux app.
+# Run these from a terminal inside cmux (its socket only accepts cmux's own processes by default).
+#   bin/cmuxp login     sign cmuxp's Claude in (once; run /login if asked, then /exit)
+#   bin/cmuxp up        start the coordinator and the dashboard
+#   bin/cmuxp down      stop the daemon (workspaces stay open)
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export CMUXP_HOME="${CMUXP_HOME:-$HOME/.cmuxp-sandbox}"
-export CMUXP_CMUX="${CMUXP_CMUX:-$CMUXP_HOME/cmux/node_modules/.bin/cmux}"
-export CMUXP_SANDBOX="$HERE/bin/sandbox-env.sh"
 export PYTHONPATH="$HERE"
 
-# PATH for the sandbox: cmux, node, and the real claude (skipping cmux.app's shim dirs).
-real_claude_dir() {
-  local IFS=:
-  for d in $PATH; do
-    case "$d" in *cmux*|*Cmux*) continue;; esac
-    [ -x "$d/claude" ] && { echo "$d"; return; }
-  done
-}
-CLAUDE_DIR="$(real_claude_dir || true)"
-NODE_DIR="$(dirname "$(command -v node 2>/dev/null || echo /usr/bin/node)")"
-export SPIKE_PATH="${SPIKE_PATH:-$(dirname "$CMUXP_CMUX"):${CLAUDE_DIR:+$CLAUDE_DIR:}$NODE_DIR:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}"
-
 case "${1:-}" in
-  setup)
-    command -v node >/dev/null || { echo "Node.js is required (brew install node)"; exit 1; }
-    [ -n "$CLAUDE_DIR" ] || { echo "Claude Code is required (https://claude.com/claude-code)"; exit 1; }
-    mkdir -p "$CMUXP_HOME/cmux"
-    (cd "$CMUXP_HOME/cmux" && npm init -y >/dev/null && npm install --silent cmux)
-    "$CMUXP_SANDBOX" "$CMUXP_CMUX" --version
-    echo "claude: $CLAUDE_DIR/claude"
-    echo "Next: bin/cmuxp login"
-    ;;
   login)
-    echo "Starting the sandboxed Claude. Finish sign-in (run /login if asked), then type /exit."
-    cd "$CMUXP_HOME" && exec "$CMUXP_SANDBOX" claude
+    command -v claude >/dev/null || { echo "Claude Code is required (https://claude.com/claude-code)"; exit 1; }
+    mkdir -p "$CMUXP_HOME/claude-config"
+    echo "Starting cmuxp's Claude (its own config, not your ~/.claude). Finish sign-in, then type /exit."
+    cd "$CMUXP_HOME" && CLAUDE_CONFIG_DIR="$CMUXP_HOME/claude-config" exec claude
     ;;
   *)
+    command -v "${CMUXP_CMUX:-cmux}" >/dev/null || { echo "The cmux CLI isn't on PATH. Run this inside the cmux app, or set CMUXP_CMUX."; exit 1; }
     exec python3 -m cmuxp.cli "$@"
     ;;
 esac

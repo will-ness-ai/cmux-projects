@@ -12,11 +12,11 @@ COORDINATOR_DENY = ["Bash", "WebFetch", "WebSearch", "Task", "Agent", "NotebookE
 
 
 def _claude_config_dir():
-    return config.HOME / "claude-config"
+    return config.CLAUDE_CONFIG
 
 
 def trust_dir(path):
-    """Pre-accept the folder trust dialog for the sandboxed Claude config."""
+    """Pre-accept the folder trust dialog in cmuxp's Claude config."""
     p = _claude_config_dir() / ".claude.json"
     d = json.loads(p.read_text()) if p.exists() else {}
     d.setdefault("hasCompletedOnboarding", True)
@@ -79,8 +79,7 @@ def _write_launcher(store: Store, agent_id, role, title, initial_prompt, workdir
     env = {
         "PYTHONPATH": str(config.ROOT), "CMUXP_ROLE": role, "CMUXP_AGENT_ID": agent_id,
         "CMUXP_PROJECT": store.project, "CMUXP_HOME": str(config.HOME),
-        "CMUXP_CMUX": config.CMUX_BIN, "CMUXP_SANDBOX": config.SANDBOX,
-        "CMUXP_PORT": str(config.PORT), "CMUXP_BACKEND": config.BACKEND,
+        "CMUXP_CMUX": config.CMUX_BIN, "CMUXP_PORT": str(config.PORT),
         "CMUXP_APP_SOCKET": config.APP_SOCKET, "CMUXP_APP_PATH": config.APP_PATH,
     }
     mcp = {"mcpServers": {"cmuxp": {"command": "python3", "args": ["-m", "cmuxp.mcp_server"], "env": env}}}
@@ -114,7 +113,7 @@ def _write_launcher(store: Store, agent_id, role, title, initial_prompt, workdir
         mem = store.dir / "memory"                # memory notes save without a prompt; Edit(//abs/**) also covers Write
         argv[argv.index("mcp__cmuxp") + 1:argv.index("mcp__cmuxp") + 1] = [f"Edit(/{mem}/**)"]
     script = "#!/usr/bin/env bash\n" + f"cd {shlex.quote(str(workdir))}\n"
-    # cmux.app terminals don't go through sandbox-env, so pin the sandboxed config here.
+    # Pin cmuxp's own Claude config so nothing touches your ~/.claude.
     script += f"export CLAUDE_CONFIG_DIR={shlex.quote(str(_claude_config_dir()))}\n"
     script += "".join(f"export {k}={shlex.quote(v)}\n" for k, v in env.items())   # for the hooks
     # Load the few cmuxp tool schemas up front; lazy loading made first calls guess argument names.

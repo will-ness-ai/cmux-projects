@@ -1,4 +1,4 @@
-"""cmuxp up | down | status | focus <thread|coordinator> | thread <title> <brief>"""
+"""cmuxp up | down | status | dashboard [--reopen] | focus <thread|coordinator> | thread <title> <brief>"""
 import json
 import os
 import signal
@@ -13,14 +13,15 @@ from .store import Store
 
 
 def signed_in():
-    r = subprocess.run([config.SANDBOX, "claude", "-p", "--model", config.MODEL, "Reply with OK"],
+    env = {**os.environ, "CLAUDE_CONFIG_DIR": str(config.CLAUDE_CONFIG)}
+    r = subprocess.run(["claude", "-p", "--model", config.MODEL, "Reply with OK"], env=env,
                        capture_output=True, text=True, timeout=120, cwd=str(config.HOME))
     return r.returncode == 0 and "OK" in r.stdout
 
 
 def up(store, cmux):
     if not signed_in():
-        sys.exit("The sandboxed Claude is not signed in yet. Run: bin/cmuxp login")
+        sys.exit("cmuxp's Claude is not signed in yet. Run: bin/cmuxp login")
     cmux.setup(store)
     c = agents.start_coordinator(store, cmux)
     pidf = store.dir / "daemon.pid"
@@ -32,8 +33,6 @@ def up(store, cmux):
     dashboard(store, cmux)
     print(f"project {store.project}: coordinator in workspace {c['workspace_id']}")
     print(f"dashboard: http://127.0.0.1:{config.PORT}/")
-    if cmux.name == "tui":
-        print("view:      bin/cmuxp view   (a cmux window that follows dashboard clicks)")
 
 
 def daemon_running(pidf):
@@ -47,7 +46,7 @@ def daemon_running(pidf):
 
 
 def dashboard(store, cmux, reopen=False):
-    """Open the dashboard as a browser pane in every project workspace (cmux.app only).
+    """Open the dashboard as a browser pane in every project workspace.
 
     Each workspace gets its own pane because selecting a thread's workspace
     hides the others; this way the dashboard stays on screen after a click."""
@@ -100,12 +99,6 @@ def main(argv=sys.argv[1:]):
         st = store.read()
         ws = st["coordinator"]["workspace_id"] if argv[1] == "coordinator" else st["threads"][argv[1]]["workspace_id"]
         cmux.focus_workspace(ws)
-    elif cmd == "view" and cmux.name == "tui":
-        # Attach a TUI viewer that re-attaches whenever the dashboard moves focus.
-        argv_ = [config.SANDBOX, config.CMUX_BIN, "attach", "--session", store.project]
-        while True:
-            if subprocess.run(argv_).returncode not in (0, None) and not cmux.server_running():
-                break
     elif cmd == "thread":
         print(agents.start_thread(store, cmux, argv[1], argv[2]))
     else:

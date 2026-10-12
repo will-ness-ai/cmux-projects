@@ -109,7 +109,7 @@ class Daemon:
             term = (st["coordinator"] or {}).get("terminal_id") if target == "coordinator" \
                 else st["threads"].get(target, {}).get("terminal_id")
             state = self.agent_state(term) if term else None
-            if state is None or (self.cmux.delivery_needs_idle and state != "idle"):
+            if state is None:
                 continue
             if time.time() - self.last_delivery.get(target, 0) < 4:
                 continue

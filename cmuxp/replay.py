@@ -62,9 +62,9 @@ def run_turn(adir, workdir, text, session=None, model="sonnet"):
     if session:
         argv += ["--resume", session]
     env = dict(os.environ, ENABLE_TOOL_SEARCH="false")
-    # The sandbox's signed-in Claude config, never the user's own ~/.claude.
-    env["CLAUDE_CONFIG_DIR"] = os.environ.get(
-        "CMUXP_CLAUDE_CONFIG", str(Path.home() / ".cmuxp-sandbox" / "claude-config"))
+    # cmuxp's signed-in Claude config, never the user's own ~/.claude.
+    from . import config
+    env["CLAUDE_CONFIG_DIR"] = os.environ.get("CMUXP_CLAUDE_CONFIG", str(config.CLAUDE_CONFIG))
     # stdin, not a trailing argument: --allowedTools is variadic and swallows a trailing prompt.
     r = subprocess.run(argv, input=text, cwd=workdir, env=env, capture_output=True, text=True, timeout=300)
     calls, final, sid = [], "", session

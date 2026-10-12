@@ -37,8 +37,8 @@ def last_assistant_text(transcript_path):
 
 def on_prompt(store, ev):
     prompt = (ev.get("prompt") or "").strip()
-    # Colleague messages are not the user talking: pasted as-is on cmux-tui, and
-    # wrapped in a <task-notification> by cmux.app's hook delivery.
+    # Colleague messages are not the user talking (cmux wraps them in a
+    # <task-notification> when its hooks deliver them).
     if not prompt or "<cmuxp-message" in prompt:
         return
     thread = None if ROLE == "coordinator" else AGENT_ID
